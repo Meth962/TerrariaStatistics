@@ -68,6 +68,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using TShockAPI;
+using Terraria;
 
 namespace Statistics
 {
@@ -97,6 +98,7 @@ namespace Statistics
     public class BossInvasion
     {
         public bool Active { get; set; }
+        public bool NeedsDeactivate { get; set; }
         public bool Invasion { get; set; }
         public int Type { get; set; }
         public string Name { get; set; }
@@ -117,7 +119,7 @@ namespace Statistics
         public BossInvasion(int type) : this()
         {
             Type = type;
-            Name = Enum.GetName(typeof(BossType), type);
+            Name = Main.npcName[type];// Enum.GetName(typeof(BossType), type);
             if (Type < 0)
                 Invasion = true;
 
@@ -144,6 +146,11 @@ namespace Statistics
                 Type = 3;
         }
 
+        public void Deactivate()
+        {
+            NeedsDeactivate = true;
+        }
+
         public void End()
         {
             EventEnd = DateTime.Now;
@@ -161,7 +168,7 @@ namespace Statistics
                 Players.Add(plr);
                 return;
             }
-
+            
             plr.DamageGiven += (uint)damage;
         }
 
@@ -198,7 +205,8 @@ namespace Statistics
             {
                 player.SendMessage(string.Format("{0}: {1:n0} ({2:n2}%) - {3:n2}dps", plr.Name, plr.DamageGiven, plr.DamageGiven * 100.0 / total, plr.DamageGiven / seconds), Color.LightGreen);
             }
-            player.SendMessage(string.Format("Last hit: {0} for {1:n0} damage.", KilledByPlayer, LastHit), Color.Green);
+            if(LastHit > 0)
+                player.SendMessage(string.Format("Last hit: {0} for {1:n0} damage.", KilledByPlayer, LastHit), Color.Green);
         }
     }
 }

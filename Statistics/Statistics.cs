@@ -32,8 +32,8 @@ namespace Statistics
         byte subCount = 0;
         byte subInterval = 10;
 
-        public int[] bossIDs = new int[] { 4, 5, 13, 14,15,35,36,50, 113, 114,115,116,117,118,119,125, 126, 127, 128, 129,130,131,134,135,136, 139,222, 245, 246,247,248,249,262,263,264,265, 266,267 };
-        public int[] bossParents = new int[] { 4, 13, 35, 50, 113, 125, 126, 127, 134, 222, 245, 262, 266 };
+        public int[] bossIDs = new int[] { 4, 5, 13, 14, 15, 35, 36, 50, 113, 114, 115, 116, 117, 118, 119, 125, 126, 127, 128, 129, 130, 131, 134, 135, 136, 139, 222, 245, 246, 247, 248, 249, 262, 263, 264, 265, 266, 267 };
+        public int[] bossParents = new int[] { 4, 13, 14, 15, 35, 50, 113, 125, 126, 127, 134, 135, 136, 222, 245, 262, 266 };
 
         public int[] invasionIDs = new int[] { 
             26, 27, 28, 29, 111, 143, 144, 145, 158, 162, 166, 212, 213, 214, 215, 216,
@@ -42,7 +42,7 @@ namespace Statistics
         };
         public int[] pumpkinLevels = new int[] { 25, 40, 50, 80, 100, 160, 180, 200, 250, 300, 375, 450, 525, 675 };
         public int[] frostLevels = new int[] { 25, 40, 50, 80, 100, 160, 180, 200, 250, 300, 375, 450, 525, 675, 850, 1025, 1325, 1550, 2000 };
-        public int[] nightBossIDs = new int[] { 4, 13, 35, 125, 126, 127, 128, 134 };
+        public int[] nightBossIDs = new int[] { 4, 35, 125, 126, 127, 128, 134 };
 
         List<BossInvasion> bosses = new List<BossInvasion>();
         List<BossInvasion> invasions = new List<BossInvasion>();
@@ -68,7 +68,8 @@ namespace Statistics
             get { return "Gives statitistics on players and DPS meters for boss/invasions."; }
         }
 
-        public Statistics(Main game) : base(game)
+        public Statistics(Main game)
+            : base(game)
         {
 
         }
@@ -129,8 +130,13 @@ namespace Statistics
             foreach (var boss in activeBosses)
             {
                 // The boss has been removed from npc slots. This could be despawn or running too far away?
-                if (Main.npc.Where(n => n.netID == boss.Type).FirstOrDefault() == null)
-                    boss.End();
+                if (Main.npc.Where(n => n.active && n.netID == boss.Type).FirstOrDefault() == null)
+                {
+                    if (boss.NeedsDeactivate)
+                        boss.End();
+                    else
+                        boss.Deactivate();
+                }
                 // Check nocturnal bosses
                 if (nightBossIDs.Contains(boss.Type) && Main.dayTime)
                     boss.End();
@@ -241,7 +247,7 @@ namespace Statistics
                                 e.Handled = true;
                                 break;
                             }
-                            bosses[bosses.Count-1-index].ReportBattle(sender);
+                            bosses[bosses.Count - 1 - index].ReportBattle(sender);
                         }
                         else
                         {
@@ -251,7 +257,7 @@ namespace Statistics
                                 e.Handled = true;
                                 break;
                             }
-                            invasions[invasions.Count-1-index].ReportBattle(sender);
+                            invasions[invasions.Count - 1 - index].ReportBattle(sender);
                         }
                         //sender.SendMessage(bosses[index].ReportBattle(), Color.LightBlue);
                         e.Handled = true;
@@ -309,7 +315,8 @@ namespace Statistics
                             Int32 w = Int32.Parse(arr[1]);
                             NPC.waveCount = w;
                             sender.SendInfoMessage("Wave set to " + w);
-                        }else
+                        }
+                        else
                             sender.SendMessage(string.Format("Wave {0}: {1}", NPC.waveCount, NPC.waveKills), Color.LightGreen);
                         e.Handled = true;
                         break;
@@ -326,7 +333,8 @@ namespace Statistics
                                     player.EventSubscribed = false;
                                     break;
                             }
-                        }else
+                        }
+                        else
                             player.EventSubscribed = false;
                         sender.SendMessage("You are no longer subscribed.", Color.Lavender);
                         e.Handled = true;
@@ -392,7 +400,6 @@ namespace Statistics
                             break;
                         case PacketTypes.NpcStrike:
                             DoNpcStrike(reader, player);
-                            //e.Handled = true;
                             break;
                         case PacketTypes.SpawnBossorInvasion:
                             DoSpawnBoss(reader);
@@ -440,7 +447,7 @@ namespace Statistics
             byte direction = reader.ReadByte();
             bool critical = reader.ReadBoolean();
             NPC npc = Main.npc[npcID];
-            Int16 idmg = dmg;
+            double calcDmg = dmg;
 
             if (player != null)
             {
@@ -448,6 +455,13 @@ namespace Statistics
 
                 if (critical)
                     player.CritsGiven++;
+
+                calcDmg = Main.CalculateDamage(dmg, npc.ichor ? npc.defense - 20 : npc.defense);
+                player.DamageGiven += (uint)calcDmg;
+                if (calcDmg > player.MaxDamage)
+                    player.MaxDamage = (short)calcDmg;
+
+                /* // Old method, use Main.CalculateDamage
                 if (dmg > -1)
                 {
                     idmg = (short)((dmg - npc.defense / 2) * (critical ? 2 : 1));
@@ -457,16 +471,17 @@ namespace Statistics
                     if (idmg > player.MaxDamage)
                         player.MaxDamage = idmg;
                 }
+                */
 
                 // Does this ever happen?
                 //if (dmg == -1)
-                    //TSPlayer.All.SendInfoMessage("Kill!");
+                //TSPlayer.All.SendInfoMessage("Kill!");
 
-                if (npc.life - idmg <= 0)
+                if (npc.life - calcDmg <= 0)
                     player.Kills++;
             }
 
-            if (bossIDs.Contains(npc.netID))
+            if (npc.boss || bossIDs.Contains(npc.netID))
             {
                 // Make sure to count children of boss for damage
                 // Especially since some bosses like Golem and Destroyer are multiple parts
@@ -479,7 +494,7 @@ namespace Statistics
                     type = 35;
                 if (type >= 114 && type <= 119) // Wall of Flesh
                     type = 113;
-                //if (type == 126) // The Twins
+                //if (type == 126) // The Twins // Separate entities, do not group together
                 //    type = 125;
                 if (type >= 128 && type <= 131) // Skeletron Prime
                     type = 127;
@@ -491,10 +506,14 @@ namespace Statistics
                     type = 262;
                 if (type == 267) // Brain of Cthulu
                     type = 266;
+
                 BossInvasion boss = bosses.Where(b => b.Type == type && b.Active).FirstOrDefault();
                 if (boss == null)
                 {
-                    boss = new BossInvasion(type, npc.name);
+                    // Disclude Probes and leeches as they can be left over after a boss fight
+                    if ((new int[] { 139, 117, 118, 119 }).Contains(npc.netID))
+                        return;
+                    boss = new BossInvasion(type);
                     bosses.Add(boss);
                 }
 
@@ -502,11 +521,16 @@ namespace Statistics
                 if (boss.Players.Count == 0)
                     boss.EventStart = DateTime.Now;
 
-                boss.AddDamage(player, idmg);
-                if (boss.Active && npc.life - idmg <= 0 && bossParents.Contains(npc.netID))
+                boss.AddDamage(player, (int)calcDmg);
+                if (boss.Active && npc.life - calcDmg <= 0 && bossParents.Contains(npc.netID))
                 {
+                    // Since Eater of Worlds is actually 50 entities, must check on each kill that no other pieces are alive
+                    // Also, any piece of the Eater of Worlds must have a tail, therefore the minimum number of pieces are 2.
+                    if (npc.netID >= 13 && npc.netID <= 15 && Main.npc.Where(n => n.active && (new int[] { 13, 14, 15 }).Contains(n.netID)).Count() > 2)
+                        return;
+
                     boss.KilledByPlayer = player.Name;
-                    boss.LastHit = idmg;
+                    boss.LastHit = (int)calcDmg;
                     boss.End();
                     //TSPlayer.All.SendMessage(string.Format("{0} killed {1} with {2} damage.", player.Name, boss.Name, idmg), Color.Purple);
                 }
@@ -538,13 +562,9 @@ namespace Statistics
                         _event.EventStart = DateTime.Now;
                     }
 
-                    _event.AddDamage(player, idmg);
+                    _event.AddDamage(player, (int)calcDmg);
                 }
             }
-
-            //TShock.Players[player.Index].Heal(20);
-            //Main.npc[npcID].StrikeNPC(150,knockback,direction,critical,false);
-            //TShock.Players[player.Index].SendData(PacketTypes.NpcStrike, string.Empty, npcID, (float)(150), (float)knockback, (float)direction, critical ? 1 : 0);
         }
 
         private static void DoPlayerHeal(BinaryReader reader, Player player)
@@ -622,7 +642,7 @@ namespace Statistics
                 {
                     try
                     {
-                        return string.Format("{0} Wave {1}/{2} - Points: {3}/{4} - Overall: {5:n0}% Remaining: {6}", e.Name, NPC.waveCount, pumpkinLevels.Length, NPC.waveKills, pumpkinLevels[NPC.waveCount-1],
+                        return string.Format("{0} Wave {1}/{2} - Points: {3}/{4} - Overall: {5:n0}% Remaining: {6}", e.Name, NPC.waveCount, pumpkinLevels.Length, NPC.waveKills, pumpkinLevels[NPC.waveCount - 1],
                             ((NPC.waveCount - 1) * 100 / pumpkinLevels.Length) + (NPC.waveKills / pumpkinLevels[NPC.waveCount - 1] * 100 / pumpkinLevels.Length), TimeTilMorning());
                     }
                     catch (Exception ex)
@@ -640,7 +660,7 @@ namespace Statistics
             {
                 if (NPC.waveCount <= frostLevels.Length)
                 {
-                    return string.Format("{0} Wave {1}/{2} - Points: {3}/{4} - Overall: {5:n0}% Remaining: {6}", e.Name, NPC.waveCount, frostLevels.Length, NPC.waveKills, frostLevels[NPC.waveCount-1],
+                    return string.Format("{0} Wave {1}/{2} - Points: {3}/{4} - Overall: {5:n0}% Remaining: {6}", e.Name, NPC.waveCount, frostLevels.Length, NPC.waveKills, frostLevels[NPC.waveCount - 1],
                         ((NPC.waveCount - 1) * 100 / frostLevels.Length) + (NPC.waveKills / frostLevels[NPC.waveCount - 1] * 100 / frostLevels.Length), TimeTilMorning());
                 }
                 else
@@ -664,7 +684,7 @@ namespace Statistics
             }
 
             seconds = (32400 - Main.time) / 60;
-            return string.Format("{0} ({1:n0}%)",Utils.FormatTime(seconds), Main.time * 100 / 32400);
+            return string.Format("{0} ({1:n0}%)", Utils.FormatTime(seconds), Main.time * 100 / 32400);
         }
 
         public string TimeTilNight()
