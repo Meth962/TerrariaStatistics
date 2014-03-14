@@ -2,6 +2,14 @@ Description
 ===========
 This mod provides basic statistics on each player as well as an encounter (boss or invasion) DPS meter. It can also be used to provide status updates of encounters. For instance, messages for Frost Moon will display the wave number, points until next wave, overall percentage of the encounter completed, time in minutes/seconds left of night, and percentage of night completed.
 
+Versions
+--------
+1.0.6 - First on github
+1.0.7 -
+	+Fixed spam on EoW
+	+Fixed issues with Probes & Leeches from the Destroyer & WoF after killed
+	+Added a safety check
+
 Commands
 --------
 /stat [playername] - Display most stats on a player if name provided, or yourself by default.
@@ -57,3 +65,7 @@ Commands
 /tliteral - Displays debug info: integer value of the Game Time variable
 /ttm - Displays the time until morning in minutes, seconds, and overall percentage completed
 /ttn - Displays the time until night in minutes, seconds, and overall percentage completed.
+
+Known Issues
+------------
+- Flagging an npc as a boss will not end the encounter until expired. This is due to the checking the "parent" id of bosses. Could add a command to fix this.
