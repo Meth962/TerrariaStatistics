@@ -155,7 +155,11 @@ namespace Statistics
         {
             EventEnd = DateTime.Now;
             Active = false;
-            TSPlayer.All.SendMessage(string.Format("{0} recording available. Type /{1} to view stats.", Invasion ? "Event" : "Battle", Invasion ? "battle" : "boss"), Color.LightCyan);
+            foreach (Player player in Players)
+            {
+                TShock.Players[player.Index].SendMessage(string.Format("{0} recording available. Type /{1} to view stats.", Invasion ? "Event" : "Battle", Invasion ? "battle" : "boss"), Color.LightCyan);
+            }
+            //TSPlayer.All.SendMessage(string.Format("{0} recording available. Type /{1} to view stats.", Invasion ? "Event" : "Battle", Invasion ? "battle" : "boss"), Color.LightCyan);
         }
 
         public void AddDamage(Player player, int damage)
