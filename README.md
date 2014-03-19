@@ -9,6 +9,11 @@ Versions
 	+Fixed spam on EoW
 	+Fixed issues with Probes & Leeches from the Destroyer & WoF after killed
 	+Added a safety check
+1.0.8 -
+	+Added subscribing to bosses. Gives you continuous reports of how much time is left for night bosses.
+	+Only players who have done damage in Boss encounters see after battle message now.
+	+Fixed spam on Plantera (left over spores)
+	+Refactored all boss "children" to eliminate reporting new boss battles
 
 Commands
 --------
@@ -56,11 +61,11 @@ Commands
 /wave - Displays debug info: Wave Count and Wave Kills
 /wave number - Sets the current wave to provided number. Allows skipping to final wave
 
-/unsub
-/unsubscribe - Unsubscribes a player from receiving continuous Event reports
+/unsub [boss|invasion]
+/unsubscribe [boss|invasion] - Unsubscribes a player from receiving continuous Event or Boss reports
 
-/sub
-/subscribe - Subscribes a player to automatically receive Event reports during invasions (see /event)
+/sub [boss|invasion]
+/subscribe [boss|invasion] - Subscribes a player to automatically receive Event reports during invasions and bosses (see /event)
 
 /tliteral - Displays debug info: integer value of the Game Time variable
 /ttm - Displays the time until morning in minutes, seconds, and overall percentage completed

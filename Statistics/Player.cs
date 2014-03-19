@@ -22,6 +22,7 @@ namespace Statistics
         public UInt32 CritsTaken { get; set; }
         public UInt32 CritsGiven { get; set; }
         public UInt32 Kills { get; set; }
+        public bool BossSubscribed { get; set; }
         public bool EventSubscribed { get; set; }
 
         public double CritPercent
@@ -34,6 +35,7 @@ namespace Statistics
 
         public Player()
         {
+            BossSubscribed = true;
             EventSubscribed = true;
         }
 

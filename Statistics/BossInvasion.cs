@@ -106,7 +106,7 @@ namespace Statistics
         public DateTime EventEnd { get; set; }
         public List<Player> Players { get; set; }
         public int InvasionStartSize { get; set; }
-        public string KilledByPlayer { get; set; }
+        public int LastPlayerHit { get; set; }
         public int LastHit { get; set; }
 
         public BossInvasion()
@@ -174,6 +174,8 @@ namespace Statistics
             }
             
             plr.DamageGiven += (uint)damage;
+            LastHit = damage;
+            LastPlayerHit = player.Index;
         }
 
         public string ReportBattle()
@@ -210,7 +212,7 @@ namespace Statistics
                 player.SendMessage(string.Format("{0}: {1:n0} ({2:n2}%) - {3:n2}dps", plr.Name, plr.DamageGiven, plr.DamageGiven * 100.0 / total, plr.DamageGiven / seconds), Color.LightGreen);
             }
             if(LastHit > 0)
-                player.SendMessage(string.Format("Last hit: {0} for {1:n0} damage.", KilledByPlayer, LastHit), Color.Green);
+                player.SendMessage(string.Format("Last hit: {0} for {1:n0} damage.", Main.player[LastPlayerHit].name, LastHit), Color.Green);
         }
     }
 }

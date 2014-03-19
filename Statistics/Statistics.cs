@@ -33,7 +33,7 @@ namespace Statistics
         byte subInterval = 10;
 
         public int[] bossIDs = new int[] { 4, 5, 13, 14, 15, 35, 36, 50, 113, 114, 115, 116, 117, 118, 119, 125, 126, 127, 128, 129, 130, 131, 134, 135, 136, 139, 222, 245, 246, 247, 248, 249, 262, 263, 264, 265, 266, 267 };
-        public int[] bossParents = new int[] { 4, 13, 14, 15, 35, 50, 113, 125, 126, 127, 134, 135, 136, 222, 245, 262, 266 };
+        public int[] bossParents = new int[] { 4, 13, 14, 15, 35, 50, 113, 125, 126, 127, 134, 136, 222, 245, 262, 266 };
 
         public int[] invasionIDs = new int[] { 
             26, 27, 28, 29, 111, 143, 144, 145, 158, 162, 166, 212, 213, 214, 215, 216,
@@ -65,7 +65,7 @@ namespace Statistics
 
         public override string Description
         {
-            get { return "Gives statitistics on players and DPS meters for boss/invasions."; }
+            get { return "Gives statistics on players and DPS meters for boss/invasions."; }
         }
 
         public Statistics(Main game)
@@ -81,17 +81,211 @@ namespace Statistics
                 dayTimer.Stop();
                 ServerApi.Hooks.ServerJoin.Deregister(this, OnServerJoin);
                 ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
-                ServerApi.Hooks.ServerChat.Deregister(this, OnChat);
+                ServerApi.Hooks.NetSendData.Deregister(this, OnSendData);
             }
         }
 
         public override void Initialize()
         {
+            Commands.ChatCommands.Add(new Command(StatCommand, "stat"));
+            Commands.ChatCommands.Add(new Command(BossCommand, "battle", "boss"));
+            Commands.ChatCommands.Add(new Command(EncountersCommand, "bosses","events"));
+            Commands.ChatCommands.Add(new Command(InvasionCommand, "event","invasion"));
+            Commands.ChatCommands.Add(new Command(SubCommand, "sub","subscribe"));
+            Commands.ChatCommands.Add(new Command(UnsubCommand, "unsub","unsubscribe"));
+            Commands.ChatCommands.Add(new Command(TtmCommand, "ttm"));
+            Commands.ChatCommands.Add(new Command(TtnCommand, "ttn"));
+            Commands.ChatCommands.Add(new Command("admin",WaveCommand, "wave"));
+
             dayTimer.Elapsed += new ElapsedEventHandler(DayTimerTick);
             dayTimer.Start();
             ServerApi.Hooks.NetGetData.Register(this, OnGetData);
+            ServerApi.Hooks.NetSendData.Register(this, OnSendData);
             ServerApi.Hooks.ServerJoin.Register(this, OnServerJoin);
-            ServerApi.Hooks.ServerChat.Register(this, OnChat);
+        }
+
+        void StatCommand(CommandArgs args)
+        {
+            Player player;
+            if (args.Parameters.Count > 0)
+            {
+                player = players.Where(p => p.Name.ToLower().Contains(args.Parameters[0].ToLower())).FirstOrDefault();
+                if (player == null)
+                {
+                    args.Player.SendWarningMessage("No player found with name like: " + args.Parameters[0]);
+                    return;
+                }
+            }
+            else
+                player = players.Where(p => p.Index == args.Player.Index).FirstOrDefault();
+
+            if (args.Parameters.Count > 1)
+            {
+                switch (args.Parameters[1].ToLower())
+                {
+                    case "crit":
+                    case "crits":
+                    case "critical":
+                        args.Player.SendMessage(string.Format("{0}'s Crit Chance: Magic: {1}% Melee: {2}% Ranged: {3}%", player.Name, Main.player[player.Index].magicCrit, Main.player[player.Index].meleeCrit, Main.player[player.Index].rangedCrit), Color.Green);
+                        break;
+                }
+            }
+            else
+            {
+                args.Player.SendMessage(string.Format("{0}'s stats - Kills: {1:n0} Damage: {2:n0}(Max {3:n0}) Crits: {4:n0}({5:n2}%)",
+                    player.Name, player.Kills, player.DamageGiven, player.MaxDamage, player.CritsGiven, player.CritPercent), Color.Green);
+                args.Player.SendMessage(string.Format("Hurt: {0:n0}(Max {1:n0}) Crits: {2:n0} Healed: {3:n0}({4:n0}) Mana: {5:n0}({6:n0})",
+                    player.DamageTaken, player.MaxReceived, player.CritsTaken, player.Healed, player.TimesHealed,
+                    player.ManaRecovered, player.TimesManaRecovered), Color.Green);
+            }
+        }
+
+        void BossCommand(CommandArgs args)
+        {
+            int index = 0;
+            if (args.Parameters.Count > 0)
+            {
+                if (!Int32.TryParse(args.Parameters[0], out index))
+                {
+                    args.Player.SendErrorMessage("Pass in a numeric value for previous battles.");
+                    return;
+                }
+            }
+
+            if (args.Message.StartsWith("boss"))
+            {
+                if (index > bosses.Count - 1)
+                {
+                    args.Player.SendErrorMessage(string.Format("Out of boss records index. Number recorded is {0}.", bosses.Count));
+                    return;
+                }
+                bosses[bosses.Count - 1 - index].ReportBattle(args.Player);
+            }
+            else
+            {
+                if (index > invasions.Count - 1)
+                {
+                    args.Player.SendErrorMessage(string.Format("Out of event records index. Number recorded is {0}.", invasions.Count));
+                    return;
+                }
+                invasions[invasions.Count - 1 - index].ReportBattle(args.Player);
+            }
+        }
+
+        void EncountersCommand(CommandArgs args)
+        {
+            if (args.Parameters.Count > 0)
+            {
+                if (args.Parameters[0].ToLower() == "clear")
+                {
+                    if (args.Message.ToLower().StartsWith("bosses"))
+                        bosses = new List<BossInvasion>();
+                    else
+                        invasions = new List<BossInvasion>();
+                    return;
+                }
+            }
+            else
+            {
+                if (args.Message.ToLower().StartsWith("bosses"))
+                    args.Player.SendInfoMessage("Boss encounters on record: {0:n0}", bosses.Count);
+                else
+                    args.Player.SendInfoMessage("Invasions on record: {0:n0}", invasions.Count);
+            }
+        }
+
+        void InvasionCommand(CommandArgs args)
+        {
+            if (args.Parameters.Count > 0)
+                args.Player.SendMessage(string.Format("Invasion: {0} Size: {1} Wave: {2} Points: {3}", Main.invasionType, Main.invasionSize, NPC.waveCount, NPC.waveKills), Color.LightGreen);
+            else
+            {
+                var invasion = invasions.Where(i => i.Type == Main.invasionType).FirstOrDefault();
+                if (Main.pumpkinMoon)
+                    invasion = invasions.Where(i => i.Type == -4).FirstOrDefault();
+                if (Main.snowMoon)
+                    invasion = invasions.Where(i => i.Type == -5).FirstOrDefault();
+
+                if (invasion != null)
+                    args.Player.SendMessage(ReportProgress(invasion), Color.LightGreen);
+            }
+        }
+
+        void SubCommand(CommandArgs args)
+        {
+            Player player = players.Where(p => p.Index == args.Player.Index).FirstOrDefault();
+            if (args.Parameters.Count > 0)
+            {
+                Player plr = players.Where(p => p.Name.ToLower() == args.Parameters[0].ToLower()).FirstOrDefault();
+                if (plr != null)
+                {
+                    args.Player.SendMessage(string.Format("Player is subscribed for Bosses: {0} Invasions: {1}.", plr.BossSubscribed, plr.EventSubscribed), Color.White);
+                }
+                switch (args.Parameters[0])
+                {
+                    case "boss":
+                        player.BossSubscribed = true;
+                        break;
+                    case "battle":
+                    case "event":
+                    case "invasion":
+                        player.EventSubscribed = true;
+                        break;
+                }
+            }
+            else
+            {
+                player.BossSubscribed = true;
+                player.EventSubscribed = true;
+            }
+            args.Player.SendMessage("You are now subscribed.", Color.Lavender);
+        }
+
+        void UnsubCommand(CommandArgs args)
+        {
+            Player player = players.Where(p => p.Index == args.Player.Index).FirstOrDefault();
+            if (args.Parameters.Count > 0)
+            {
+                switch (args.Parameters[0])
+                {
+                    case "boss":
+                        player.BossSubscribed = false;
+                        break;
+                    case "battle":
+                    case "event":
+                    case "invasion":
+                        player.EventSubscribed = false;
+                        break;
+                }
+            }
+            else
+            {
+                player.BossSubscribed = true;
+                player.EventSubscribed = false;
+            }
+            args.Player.SendMessage("You are no longer subscribed.", Color.Lavender);
+        }
+
+        void WaveCommand(CommandArgs args)
+        {
+            if (args.Parameters.Count > 0)
+            {
+                Int32 w = Int32.Parse(args.Parameters[0]);
+                NPC.waveCount = w;
+                args.Player.SendInfoMessage("Wave set to " + w);
+            }
+            else
+                args.Player.SendMessage(string.Format("Wave {0}: {1}", NPC.waveCount, NPC.waveKills), Color.LightGreen);
+        }
+
+        void TtmCommand(CommandArgs args)
+        {
+            args.Player.SendInfoMessage("TimeUntilMorning: " + TimeTilMorning());
+        }
+
+        void TtnCommand(CommandArgs args)
+        {
+            args.Player.SendInfoMessage("TimeUntilNight: " + TimeTilNight());
         }
 
         void DayTimerTick(object source, ElapsedEventArgs e)
@@ -138,8 +332,8 @@ namespace Statistics
                         boss.Deactivate();
                 }
                 // Check nocturnal bosses
-                if (nightBossIDs.Contains(boss.Type) && Main.dayTime)
-                    boss.End();
+                //if (nightBossIDs.Contains(boss.Type) && Main.dayTime)
+                    //boss.End();
             }
 
             // Send subscription information for events to subscribed players
@@ -154,6 +348,16 @@ namespace Statistics
                     foreach (var sub in subbedPlayers)
                     {
                         TShock.Players[sub.Index].SendMessage(report, Color.Purple);
+                    }
+                }
+
+                var nocturnalBosses = bosses.Where(i => i.Active && nightBossIDs.Contains(i.Type)).FirstOrDefault();
+                if (nocturnalBosses != null)
+                {
+                    foreach (var player in nocturnalBosses.Players)
+                    {
+                        if(player.BossSubscribed)
+                            TShock.Players[player.Index].SendMessage("Time Until Morning: " + TimeTilMorning(), Color.Purple);
                     }
                 }
             }
@@ -180,202 +384,13 @@ namespace Statistics
             }
         }
 
-        void OnChat(ServerChatEventArgs e)
+        void OnSendData(SendDataEventArgs e)
         {
-            string text = e.Text;
-            if (e.Text.StartsWith("/"))
+            switch(e.MsgId)
             {
-                var sender = TShock.Players[e.Who];
-                //var sender = players.Where(p => p.Index == e.Who).FirstOrDefault();
-                string[] arr = e.Text.Split(' ');
-                switch (arr[0])
-                {
-                    case "/stat":
-                        Player player;
-                        if (arr.Length > 1)
-                        {
-                            player = players.Where(p => p.Name.ToLower().Contains(arr[1].ToLower())).FirstOrDefault();
-                            if (player == null)
-                            {
-                                sender.SendWarningMessage("No player found with name like: " + arr[1]);
-                                e.Handled = true;
-                                break;
-                            }
-                        }
-                        else
-                            player = players.Where(p => p.Index == sender.Index).FirstOrDefault();
-
-                        if (arr.Length > 2)
-                        {
-                            switch (arr[2].ToLower())
-                            {
-                                case "crit":
-                                case "crits":
-                                case "critical":
-                                    sender.SendMessage(string.Format("{0}'s Crit Chance: Magic: {1}% Melee: {2}% Ranged: {3}%", player.Name, Main.player[player.Index].magicCrit, Main.player[player.Index].meleeCrit, Main.player[player.Index].rangedCrit), Color.Green);
-                                    break;
-                            }
-                        }
-                        else
-                        {
-                            sender.SendMessage(string.Format("{0}'s stats - Kills: {1:n0} Damage: {2:n0}(Max {3:n0}) Crits: {4:n0}({5:n2}%)",
-                                player.Name, player.Kills, player.DamageGiven, player.MaxDamage, player.CritsGiven, player.CritPercent), Color.Green);
-                            sender.SendMessage(string.Format("Hurt: {0:n0}(Max {1:n0}) Crits: {2:n0} Healed: {3:n0}({4:n0}) Mana: {5:n0}({6:n0})",
-                                player.DamageTaken, player.MaxReceived, player.CritsTaken, player.Healed, player.TimesHealed,
-                                player.ManaRecovered, player.TimesManaRecovered), Color.Green);
-                        }
-                        e.Handled = true;
-                        break;
-                    case "/battle":
-                    case "/boss":
-                        int index = 0;
-                        if (arr.Length > 1)
-                        {
-                            if (!Int32.TryParse(arr[1], out index))
-                            {
-                                sender.SendErrorMessage("Pass in a numeric value for previous battles.");
-                                e.Handled = true;
-                                break;
-                            }
-                        }
-
-                        if (arr[0] == "/boss")
-                        {
-                            if (index > bosses.Count - 1)
-                            {
-                                sender.SendErrorMessage(string.Format("Out of boss records index. Number recorded is {0}.", bosses.Count));
-                                e.Handled = true;
-                                break;
-                            }
-                            bosses[bosses.Count - 1 - index].ReportBattle(sender);
-                        }
-                        else
-                        {
-                            if (index > invasions.Count - 1)
-                            {
-                                sender.SendErrorMessage(string.Format("Out of event records index. Number recorded is {0}.", invasions.Count));
-                                e.Handled = true;
-                                break;
-                            }
-                            invasions[invasions.Count - 1 - index].ReportBattle(sender);
-                        }
-                        //sender.SendMessage(bosses[index].ReportBattle(), Color.LightBlue);
-                        e.Handled = true;
-                        break;
-                    case "/bosses":
-                        if (arr.Length > 1)
-                        {
-                            if (arr[1] == "clear")
-                            {
-                                bosses = new List<BossInvasion>();
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            sender.SendInfoMessage("Boss encounters on record: {0:n0}", bosses.Count);
-                        }
-                        e.Handled = true;
-                        break;
-                    case "/invasion":
-                    case "/event":
-                        if (arr.Length > 1)
-                            sender.SendMessage(string.Format("Invasion: {0} Size: {1} Wave: {2} Points: {3}", Main.invasionType, Main.invasionSize, NPC.waveCount, NPC.waveKills), Color.LightGreen);
-                        else
-                        {
-                            var invasion = invasions.Where(i => i.Type == Main.invasionType).FirstOrDefault();
-                            if (Main.pumpkinMoon)
-                                invasion = invasions.Where(i => i.Type == -4).FirstOrDefault();
-                            if (Main.snowMoon)
-                                invasion = invasions.Where(i => i.Type == -5).FirstOrDefault();
-
-                            if (invasion != null)
-                                sender.SendMessage(ReportProgress(invasion), Color.LightGreen);
-                        }
-                        e.Handled = true;
-                        break;
-                    case "/events":
-                        if (arr.Length > 1)
-                        {
-                            if (arr[1] == "clear")
-                            {
-                                invasions = new List<BossInvasion>();
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            sender.SendInfoMessage("Event encounters on record: {0:n0}", invasions.Count);
-                        }
-                        e.Handled = true;
-                        break;
-                    case "/wave":
-                        if (arr.Length > 1)
-                        {
-                            Int32 w = Int32.Parse(arr[1]);
-                            NPC.waveCount = w;
-                            sender.SendInfoMessage("Wave set to " + w);
-                        }
-                        else
-                            sender.SendMessage(string.Format("Wave {0}: {1}", NPC.waveCount, NPC.waveKills), Color.LightGreen);
-                        e.Handled = true;
-                        break;
-                    case "/unsub":
-                    case "/unsubscribe":
-                        player = players.Where(p => p.Index == sender.Index).FirstOrDefault();
-                        if (arr.Length > 1)
-                        {
-                            switch (arr[1])
-                            {
-                                case "battle":
-                                case "event":
-                                case "invasion":
-                                    player.EventSubscribed = false;
-                                    break;
-                            }
-                        }
-                        else
-                            player.EventSubscribed = false;
-                        sender.SendMessage("You are no longer subscribed.", Color.Lavender);
-                        e.Handled = true;
-                        break;
-                    case "/sub":
-                    case "/subscribe":
-                        player = players.Where(p => p.Index == sender.Index).FirstOrDefault();
-                        if (arr.Length > 1)
-                        {
-                            Player plr = players.Where(p => p.Name.ToLower() == arr[1].ToLower()).FirstOrDefault();
-                            if (plr != null)
-                            {
-                                sender.SendMessage(string.Format("Player is {0}.", plr.EventSubscribed ? "subscribed" : "not subscribed"), Color.White);
-                            }
-                            switch (arr[1])
-                            {
-                                case "battle":
-                                case "event":
-                                case "invasion":
-                                    player.EventSubscribed = true;
-                                    break;
-                            }
-                        }
-                        else
-                            player.EventSubscribed = true;
-                        sender.SendMessage("You are now subscribed.", Color.Lavender);
-                        e.Handled = true;
-                        break;
-                    case "/tliteral":
-                        sender.SendInfoMessage(Main.time.ToString());
-                        e.Handled = true;
-                        break;
-                    case "/ttm":
-                        sender.SendInfoMessage("TimeUntilMorning: " + TimeTilMorning());
-                        e.Handled = true;
-                        break;
-                    case "/ttn":
-                        sender.SendInfoMessage("TimeUntilNight: " + TimeTilNight());
-                        e.Handled = true;
-                        break;
-                }
+                case PacketTypes.NpcUpdate:
+                    DoNpcUpdate(e.number);
+                    break;
             }
         }
 
@@ -461,22 +476,6 @@ namespace Statistics
                 if (calcDmg > player.MaxDamage)
                     player.MaxDamage = (short)calcDmg;
 
-                /* // Old method, use Main.CalculateDamage
-                if (dmg > -1)
-                {
-                    idmg = (short)((dmg - npc.defense / 2) * (critical ? 2 : 1));
-                    if (idmg <= 0)
-                        idmg = 1;
-                    player.DamageGiven += (uint)idmg;
-                    if (idmg > player.MaxDamage)
-                        player.MaxDamage = idmg;
-                }
-                */
-
-                // Does this ever happen?
-                //if (dmg == -1)
-                //TSPlayer.All.SendInfoMessage("Kill!");
-
                 if (npc.life - calcDmg <= 0)
                     player.Kills++;
             }
@@ -510,9 +509,13 @@ namespace Statistics
                 BossInvasion boss = bosses.Where(b => b.Type == type && b.Active).FirstOrDefault();
                 if (boss == null)
                 {
-                    // Disclude Probes and leeches as they can be left over after a boss fight
-                    if ((new int[] { 139, 117, 118, 119 }).Contains(npc.netID))
+                    // Disclude Probes, leeches, etc as they can be left over after a boss fight so look for presence of parent boss
+                    // Override Destroyer head, it seems to stay "active" too long so look for tail instead
+                    if (type == 134 && Main.npc.FirstOrDefault(n => n.type == 136) == null)
                         return;
+                    if(Main.npc.FirstOrDefault(n => n.active && n.type == type) == null)
+                        return;
+                    //TSPlayer.All.SendInfoMessage(string.Format("New boss on hit! {0} {1}", type, npc.netID));
                     boss = new BossInvasion(type);
                     bosses.Add(boss);
                 }
@@ -522,18 +525,6 @@ namespace Statistics
                     boss.EventStart = DateTime.Now;
 
                 boss.AddDamage(player, (int)calcDmg);
-                if (boss.Active && npc.life - calcDmg <= 0 && bossParents.Contains(npc.netID))
-                {
-                    // Since Eater of Worlds is actually 50 entities, must check on each kill that no other pieces are alive
-                    // Also, any piece of the Eater of Worlds must have a tail, therefore the minimum number of pieces are 2.
-                    if (npc.netID >= 13 && npc.netID <= 15 && Main.npc.Where(n => n.active && (new int[] { 13, 14, 15 }).Contains(n.netID)).Count() > 2)
-                        return;
-
-                    boss.KilledByPlayer = player.Name;
-                    boss.LastHit = (int)calcDmg;
-                    boss.End();
-                    //TSPlayer.All.SendMessage(string.Format("{0} killed {1} with {2} damage.", player.Name, boss.Name, idmg), Color.Purple);
-                }
             }
 
             if (invasionIDs.Contains(npc.netID))
@@ -563,6 +554,33 @@ namespace Statistics
                     }
 
                     _event.AddDamage(player, (int)calcDmg);
+                }
+            }
+        }
+
+        private void DoNpcUpdate(int npcID)
+        {
+            NPC npc = Main.npc[npcID];
+
+            if (npc != null && !npc.active)
+            {
+                // He died!
+                if (npc.boss || bossParents.Contains(npc.netID))
+                {
+                    int type = npc.netID == 136 ? 134 : npc.netID;// the Destroyer's head never updates, so we can watch for the death of the tail
+                    BossInvasion boss = bosses.Where(b => b.Type == type && b.Active).FirstOrDefault();
+                    if (boss != null && boss.Active)
+                    {
+                        // Since Eater of Worlds is actually 50 entities, must check on each kill that no other heads are alive
+                        // Also, any piece of the Eater of Worlds must have a tail, therefore the minimum number of pieces are 2.
+                        if (npc.netID >= 13 && npc.netID <= 15 && Main.npc.Where(n => n.active && n.netID == 14).Count() > 0)
+                            return;
+
+                        // This is handled in boss.AddDamage for each hit so data should be last update
+                        //boss.KilledByPlayer = player.Name;
+                        //boss.LastHit = (int)calcDmg;
+                        boss.End();
+                    }
                 }
             }
         }
