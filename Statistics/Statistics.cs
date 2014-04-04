@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Linq;
 using System.IO;
 using System.Timers;
+using TShockAPI.Hooks;
 
 /*
     TODO List:
@@ -29,6 +30,7 @@ namespace Statistics
     public class Statistics : TerrariaPlugin
     {
         Timer dayTimer = new Timer(1000);
+        Timer UpdateTimer = new Timer(60000);   //Updates the DB every minute
         byte subCount = 0;
         byte subInterval = 10;
 
@@ -79,9 +81,11 @@ namespace Statistics
             if (disposing)
             {
                 dayTimer.Stop();
-                ServerApi.Hooks.ServerJoin.Deregister(this, OnServerJoin);
+                UpdateTimer.Stop();
+                //ServerApi.Hooks.ServerJoin.Deregister(this, OnServerJoin);
                 ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
                 ServerApi.Hooks.NetSendData.Deregister(this, OnSendData);
+                ServerApi.Hooks.ServerLeave.Deregister(this, OnServerLeave);
             }
         }
 
@@ -97,11 +101,17 @@ namespace Statistics
             Commands.ChatCommands.Add(new Command(TtnCommand, "ttn"));
             Commands.ChatCommands.Add(new Command("admin",WaveCommand, "wave"));
 
+            StatDB.SetupDB();
             dayTimer.Elapsed += new ElapsedEventHandler(DayTimerTick);
             dayTimer.Start();
+            UpdateTimer.Elapsed += UpdateTimerTick;
+            UpdateTimer.Start();
             ServerApi.Hooks.NetGetData.Register(this, OnGetData);
             ServerApi.Hooks.NetSendData.Register(this, OnSendData);
-            ServerApi.Hooks.ServerJoin.Register(this, OnServerJoin);
+            //ServerApi.Hooks.ServerJoin.Register(this, OnServerJoin);
+            ServerApi.Hooks.ServerLeave.Register(this, OnServerLeave);
+
+            PlayerHooks.PlayerPostLogin += OnPlayerLogin;
         }
 
         void StatCommand(CommandArgs args)
@@ -363,24 +373,100 @@ namespace Statistics
             }
         }
 
+        void UpdateTimerTick(object sender, ElapsedEventArgs e)
+        {
+            foreach (Player player in players)
+            {
+                if (TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn)
+                {
+                    StatDB.UpdatePlayer(player);
+                }
+            }
+        }
+
         void OnServerJoin(JoinEventArgs e)
         {
             try
             {
+                // A small check to prevent third-party connection attempts from breaking the system
+                if (TShock.Players[e.Who] == null)
+                    return;
+
                 // Get players by name to keep stats. Different slots will be assigned when rejoining.
                 Player player = players.Where(p => p.Name == Main.player[e.Who].name).FirstOrDefault();
                 if (player == null)
                 {
-                    players.Add(new Player(e.Who, Main.player[e.Who].name));
+                    // If Player doesn't exist in the DB, create it
+                    if (!StatDB.PlayerExists(TShock.Players[e.Who].Name))
+                    {
+                        StatDB.AddPlayer(new Player(e.Who, TShock.Players[e.Who].Name));
+                        players.Add(new Player(e.Who, Main.player[e.Who].name));
+                    }
+                    else
+                    {
+                        players.Add(StatDB.PullPlayer(e.Who));
+                    }
                 }
                 else
                 {
-                    player.Index = e.Who;
+                    if (!StatDB.PlayerExists(TShock.Players[e.Who].Name))
+                    {
+                        StatDB.AddPlayer(players.Where(p => p.Name == Main.player[e.Who].name).FirstOrDefault());
+                    }
+                    else
+                    {
+                        player.Index = e.Who;
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Log.ConsoleError(ex.ToString());
+            }
+        }
+
+        void OnPlayerLogin(PlayerPostLoginEventArgs e)
+        {
+            try
+            {
+                // Get players by name to keep stats. Different slots will be assigned when rejoining.
+                Player player = players.Where(p => p.Name == e.Player.Name).FirstOrDefault();
+                if (player == null)
+                {
+                    // If Player doesn't exist in the DB, create it
+                    if (!StatDB.PlayerExists(e.Player.Name))
+                    {
+                        StatDB.AddPlayer(new Player(e.Player.Index, e.Player.Name));
+                        players.Add(new Player(e.Player.Index, e.Player.Name));
+                    }
+                    else
+                    {
+                        players.Add(StatDB.PullPlayer(e.Player.Index));
+                    }
+                }
+                else
+                {
+                    if (!StatDB.PlayerExists(e.Player.Name))
+                    {
+                        StatDB.AddPlayer(players.Where(p => p.Name == e.Player.Name).FirstOrDefault());
+                    }
+                    else
+                    {
+                        player.Index = e.Player.Index;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.ConsoleError(ex.ToString());
+            }
+        }
+
+        void OnServerLeave(LeaveEventArgs e)
+        {
+            if (TShock.Players[e.Who] != null && TShock.Players[e.Who].IsLoggedIn && players[e.Who] != null)
+            {
+                StatDB.UpdatePlayer(players[e.Who]);
             }
         }
 
