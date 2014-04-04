@@ -427,39 +427,55 @@ namespace Statistics
 
         void OnPlayerLogin(PlayerPostLoginEventArgs e)
         {
-            try
+            // Runs if the player already exists in the database
+            if (StatDB.PlayerExists(e.Player.Name))
             {
-                // Get players by name to keep stats. Different slots will be assigned when rejoining.
-                Player player = players.Where(p => p.Name == e.Player.Name).FirstOrDefault();
-                if (player == null)
+                // Finds the player, returning null if it doesn't exist
+                Player found = players.Find(p => p.Name == e.Player.Name);
+                if (found == null)
                 {
-                    // If Player doesn't exist in the DB, create it
-                    if (!StatDB.PlayerExists(e.Player.Name))
-                    {
-                        StatDB.AddPlayer(new Player(e.Player.Index, e.Player.Name));
-                        players.Add(new Player(e.Player.Index, e.Player.Name));
-                    }
-                    else
-                    {
-                        players.Add(StatDB.PullPlayer(e.Player.Index));
-                    }
+                    players.Add(new Player(e.Player.Index, e.Player.Name));
                 }
                 else
                 {
-                    if (!StatDB.PlayerExists(e.Player.Name))
-                    {
-                        StatDB.AddPlayer(players.Where(p => p.Name == e.Player.Name).FirstOrDefault());
-                    }
-                    else
-                    {
-                        player.Index = e.Player.Index;
-                    }
+                    found.Index = e.Player.Index;
                 }
             }
-            catch (Exception ex)
+            // Runs if the player is unexistant in the database
+            else
             {
-                Log.ConsoleError(ex.ToString());
+                StatDB.AddPlayer(new Player(e.Player.Index, e.Player.Name));
+                players.Add(new Player(e.Player.Index, e.Player.Name));
             }
+            #region old
+            //// Get players by name to keep stats. Different slots will be assigned when rejoining.
+            //Player player = players[e.Player.Index];
+            //if (player == null)
+            //{
+            //    // If Player doesn't exist in the DB, create it
+            //    if (!StatDB.PlayerExists(e.Player.Name))
+            //    {
+            //        Player newplayer = new Player(e.Player.Index, e.Player.Name);
+            //        StatDB.AddPlayer(newplayer);
+            //        players.Add(newplayer);
+            //    }
+            //    else
+            //    {
+            //        players.Add(StatDB.PullPlayer(e.Player.Index));
+            //    }
+            //}
+            //else
+            //{
+            //    if (!StatDB.PlayerExists(e.Player.Name))
+            //    {
+            //        StatDB.AddPlayer(players.Where(p => p.Name == e.Player.Name).FirstOrDefault());
+            //    }
+            //    else
+            //    {
+            //        player.Index = e.Player.Index;
+            //    }
+            //}
+            #endregion
         }
 
         void OnServerLeave(LeaveEventArgs e)

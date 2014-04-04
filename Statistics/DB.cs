@@ -14,7 +14,7 @@ namespace Statistics
     public class StatDB
     {
         private static IDbConnection db;
-        private static string savepath = Path.Combine(TShock.SavePath, (TShock.Config.StorageType.ToLower() == "mysql" ? "Statistics.db" : "Statistics.sqlite"));
+        private static string savepath = Path.Combine(TShock.SavePath, "Statistics.sqlite");
 
         #region Setup Database
         public static void SetupDB()
@@ -40,8 +40,8 @@ namespace Statistics
             }
             SqlTableCreator sqlcreator = new SqlTableCreator(db, db.GetSqlType() == SqlType.Sqlite ?
                 (IQueryBuilder)new SqliteQueryCreator() : new MysqlQueryCreator());
-            sqlcreator.EnsureExists(new SqlTable("Players",
-                new SqlColumn("Name", MySqlDbType.Text) { Unique = true },
+            sqlcreator.EnsureExists(new SqlTable("StatPlayers",
+                new SqlColumn("Name", MySqlDbType.Text),
                 new SqlColumn("Healed", MySqlDbType.Int32),
                 new SqlColumn("TimesHealed", MySqlDbType.Int32),
                 new SqlColumn("ManaRecovered", MySqlDbType.Int32),
@@ -61,7 +61,7 @@ namespace Statistics
         #region Add Player
         public static bool AddPlayer(Player Player)
         {
-            String query = "INSERT INTO Players (Name, Healed, TimesHealed, ManaRecovered, TimesManaRecovered, TimesDealtDamage, " +
+            String query = "INSERT INTO StatPlayers (Name, Healed, TimesHealed, ManaRecovered, TimesManaRecovered, TimesDealtDamage, " +
             "DamageTaken, TimesDamaged, DamageGiven, MaxDamage, MaxReceived, CritsTaken, CritsGiven, Kills) VALUES (@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12, @13);";
 
             if (db.Query(query, Player.Name, Player.Healed, Player.TimesHealed, Player.ManaRecovered, Player.TimesManaRecovered,
@@ -77,7 +77,7 @@ namespace Statistics
         #region PlayerExists?
         public static bool PlayerExists(string Name)
         {
-            String query = "SELECT Name FROM Players WHERE Name=@0;";
+            String query = "SELECT Name FROM StatPlayers WHERE Name=@0;";
             List<string> usr = new List<string>();
             using (var reader = db.QueryReader(query, Name))
             {
@@ -101,7 +101,7 @@ namespace Statistics
         public static Player PullPlayer(int Index)
         {
             String query = "SELECT Healed, TimesHealed, ManaRecovered, TimesManaRecovered, TimesDealtDamage, DamageTaken, TimesDamaged, " +
-                "DamageGiven, MaxDamage, MaxReceived, CritsTaken, CritsGiven, Kills FROM Players WHERE Name=@0;";
+                "DamageGiven, MaxDamage, MaxReceived, CritsTaken, CritsGiven, Kills FROM StatPlayers WHERE Name=@0;";
             Player player;
 
             try
@@ -140,7 +140,7 @@ namespace Statistics
         #region Update | Save Player
         public static void UpdatePlayer(Player Player)
         {
-            String query = "UPDATE Players SET Healed=@1, TimesHealed=@2, ManaRecovered=@3, TimesManaRecovered=@4, TimesDealtDamage=@5, "+
+            String query = "UPDATE StatPlayers SET Healed=@1, TimesHealed=@2, ManaRecovered=@3, TimesManaRecovered=@4, TimesDealtDamage=@5, "+
                 "DamageTaken=@6, TimesDamaged=@7, DamageGiven=@8, MaxDamage=@9, MaxReceived=@10, CritsTaken=@11, CritsGiven=@12, " +
                 "Kills=@13 WHERE Name=@0;";
 
