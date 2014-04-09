@@ -99,7 +99,7 @@ namespace Statistics
         }
         #endregion
         #region Pull Player
-        public static Player PullPlayer(int Index)
+        public static Player PullPlayer(string Name)
         {
             String query = "SELECT Healed, TimesHealed, ManaRecovered, TimesManaRecovered, TimesDealtDamage, DamageTaken, TimesDamaged, " +
                 "DamageGiven, MaxDamage, MaxReceived, CritsTaken, CritsGiven, Kills, Playtime FROM StatPlayers WHERE Name=@0;";
@@ -107,11 +107,11 @@ namespace Statistics
 
             try
             {
-                using (var reader = db.QueryReader(query, TShock.Players[Index].Name))
+                using (var reader = db.QueryReader(query, Name))
                 {
                     while (reader.Read())
                     {
-                        player = new Player(Index, TShock.Players[Index].Name)
+                        player = new Player(TShock.Players.First(p => p.Name == Name).Index, Name)
                             {
                                 Healed = (uint)reader.Get<Int32>("Healed"),
                                 TimesHealed = (uint)reader.Get<Int32>("TimesHealed"),

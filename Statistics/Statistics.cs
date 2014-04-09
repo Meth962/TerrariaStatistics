@@ -472,16 +472,16 @@ namespace Statistics
                 Player found = players.Where(p => p.Name == e.Player.Name).FirstOrDefault();
                 if (found == null)
                 {
-                    players.Add(new Player(e.Player.Index, e.Player.Name));
+                    players.Add(StatDB.PullPlayer(e.Player.Name));
                 }
                 else
                 {
                     found.Index = e.Player.Index;
                 }
             }
-            // Runs if the player is unexistant in the database
             else
             {
+                // Runs if the player is unexistant in the database
                 StatDB.AddPlayer(new Player(e.Player.Index, e.Player.Name));
                 players.Add(new Player(e.Player.Index, e.Player.Name));
             }
