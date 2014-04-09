@@ -469,7 +469,7 @@ namespace Statistics
             if (StatDB.PlayerExists(e.Player.Name))
             {
                 // Finds the player, returning null if it doesn't exist
-                Player found = players.Where(p => p.Index == e.Player.Index).FirstOrDefault();
+                Player found = players.Where(p => p.Name == e.Player.Name).FirstOrDefault();
                 if (found == null)
                 {
                     players.Add(new Player(e.Player.Index, e.Player.Name));
