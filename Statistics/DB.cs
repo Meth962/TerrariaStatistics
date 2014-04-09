@@ -54,7 +54,8 @@ namespace Statistics
                 new SqlColumn("MaxReceived", MySqlDbType.Int32),
                 new SqlColumn("CritsTaken", MySqlDbType.Int32),
                 new SqlColumn("CritsGiven", MySqlDbType.Int32),
-                new SqlColumn("Kills", MySqlDbType.Int32)));
+                new SqlColumn("Kills", MySqlDbType.Int32),
+                new SqlColumn("Playtime", MySqlDbType.Double)));
         }
         #endregion
 
@@ -62,11 +63,11 @@ namespace Statistics
         public static bool AddPlayer(Player Player)
         {
             String query = "INSERT INTO StatPlayers (Name, Healed, TimesHealed, ManaRecovered, TimesManaRecovered, TimesDealtDamage, " +
-            "DamageTaken, TimesDamaged, DamageGiven, MaxDamage, MaxReceived, CritsTaken, CritsGiven, Kills) VALUES (@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12, @13);";
+            "DamageTaken, TimesDamaged, DamageGiven, MaxDamage, MaxReceived, CritsTaken, CritsGiven, Kills, Playtime) VALUES (@0, @1, @2, @3, @4, @5, @6, @7, @8, @9, @10, @11, @12, @13, @14);";
 
             if (db.Query(query, Player.Name, Player.Healed, Player.TimesHealed, Player.ManaRecovered, Player.TimesManaRecovered,
                 Player.TimesDealtDamage, Player.DamageTaken, Player.TimesDamaged, Player.DamageGiven, Player.MaxDamage, Player.MaxReceived,
-                Player.CritsTaken, Player.CritsGiven, Player.Kills) != 1)
+                Player.CritsTaken, Player.CritsGiven, Player.Kills, Player.Time.Playing) != 1)
             {
                 Log.ConsoleError("[Statistics] Creating a Player's DB Info has failed!");
                 return false;
@@ -101,7 +102,7 @@ namespace Statistics
         public static Player PullPlayer(int Index)
         {
             String query = "SELECT Healed, TimesHealed, ManaRecovered, TimesManaRecovered, TimesDealtDamage, DamageTaken, TimesDamaged, " +
-                "DamageGiven, MaxDamage, MaxReceived, CritsTaken, CritsGiven, Kills FROM StatPlayers WHERE Name=@0;";
+                "DamageGiven, MaxDamage, MaxReceived, CritsTaken, CritsGiven, Kills, Playtime FROM StatPlayers WHERE Name=@0;";
             Player player;
 
             try
@@ -124,7 +125,8 @@ namespace Statistics
                                 MaxReceived = (Int16)reader.Get<Int32>("MaxReceived"),
                                 CritsTaken = (uint)reader.Get<Int32>("CritsTaken"),
                                 CritsGiven = (uint)reader.Get<Int32>("CritsGiven"),
-                                Kills = (uint)reader.Get<Int32>("Kills")
+                                Kills = (uint)reader.Get<Int32>("Kills"),
+                                Time = new Time() { Playing = new TimeSpan(0, 0, (int)reader.Get<double>("Playtime")) }
                             };
                         return player;
                     }
@@ -142,11 +144,11 @@ namespace Statistics
         {
             String query = "UPDATE StatPlayers SET Healed=@1, TimesHealed=@2, ManaRecovered=@3, TimesManaRecovered=@4, TimesDealtDamage=@5, "+
                 "DamageTaken=@6, TimesDamaged=@7, DamageGiven=@8, MaxDamage=@9, MaxReceived=@10, CritsTaken=@11, CritsGiven=@12, " +
-                "Kills=@13 WHERE Name=@0;";
+                "Kills=@13, Playtime=@14 WHERE Name=@0;";
 
             if (db.Query(query, Player.Name, (int)Player.Healed, (int)Player.TimesHealed, (int)Player.ManaRecovered, (int)Player.TimesManaRecovered,
                 (int)Player.TimesDealtDamage, (int)Player.DamageTaken, (int)Player.TimesDamaged, (int)Player.DamageGiven, (int)Player.MaxDamage,
-                (int)Player.MaxReceived, (int)Player.CritsTaken, (int)Player.CritsGiven, (int)Player.Kills) != 1)
+                (int)Player.MaxReceived, (int)Player.CritsTaken, (int)Player.CritsGiven, (int)Player.Kills, Player.Time.Playing.TotalSeconds) != 1)
             {
                 Log.ConsoleError("[Statistics] Updating a Player's DB Info has failed!");
                 return;

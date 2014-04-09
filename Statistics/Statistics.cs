@@ -86,6 +86,8 @@ namespace Statistics
                 ServerApi.Hooks.NetGetData.Deregister(this, OnGetData);
                 ServerApi.Hooks.NetSendData.Deregister(this, OnSendData);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnServerLeave);
+
+                PlayerHooks.PlayerPostLogin -= OnPlayerLogin;
             }
         }
 
@@ -93,7 +95,7 @@ namespace Statistics
         {
             Commands.ChatCommands.Add(new Command(StatCommand, "stat"));
             Commands.ChatCommands.Add(new Command(BossCommand, "battle", "boss"));
-            Commands.ChatCommands.Add(new Command(EncountersCommand, "bosses","events"));
+            Commands.ChatCommands.Add(new Command(EncountersCommand, "bosses", "events"));
             Commands.ChatCommands.Add(new Command(InvasionCommand, "event","invasion"));
             Commands.ChatCommands.Add(new Command(SubCommand, "sub","subscribe"));
             Commands.ChatCommands.Add(new Command(UnsubCommand, "unsub","unsubscribe"));
@@ -116,6 +118,11 @@ namespace Statistics
 
         void StatCommand(CommandArgs args)
         {
+            if (!args.Player.IsLoggedIn)
+            {
+                args.Player.SendErrorMessage("You must be logged in to do that!");
+                return;
+            }
             Player player;
             if (args.Parameters.Count > 0)
             {
@@ -142,8 +149,8 @@ namespace Statistics
             }
             else
             {
-                args.Player.SendMessage(string.Format("{0}'s stats - Kills: {1:n0} Damage: {2:n0}(Max {3:n0}) Crits: {4:n0}({5:n2}%)",
-                    player.Name, player.Kills, player.DamageGiven, player.MaxDamage, player.CritsGiven, player.CritPercent), Color.Green);
+                args.Player.SendMessage(string.Format("{0}'s stats - Kills: {1:n0} Damage: {2:n0}(Max {3:n0}) Crits: {4:n0}({5:n2}%) Playtime: {6}",
+                    player.Name, player.Kills, player.DamageGiven, player.MaxDamage, player.CritsGiven, player.CritPercent, Utils.FormatTime(player.Time.Playing)), Color.Green);
                 args.Player.SendMessage(string.Format("Hurt: {0:n0}(Max {1:n0}) Crits: {2:n0} Healed: {3:n0}({4:n0}) Mana: {5:n0}({6:n0})",
                     player.DamageTaken, player.MaxReceived, player.CritsTaken, player.Healed, player.TimesHealed,
                     player.ManaRecovered, player.TimesManaRecovered), Color.Green);
@@ -223,6 +230,11 @@ namespace Statistics
 
         void SubCommand(CommandArgs args)
         {
+            if (!args.Player.IsLoggedIn)
+            {
+                args.Player.SendErrorMessage("You must be logged in to do that!");
+                return;
+            }
             Player player = players.Where(p => p.Index == args.Player.Index).FirstOrDefault();
             if (args.Parameters.Count > 0)
             {
@@ -253,6 +265,11 @@ namespace Statistics
 
         void UnsubCommand(CommandArgs args)
         {
+            if (!args.Player.IsLoggedIn)
+            {
+                args.Player.SendErrorMessage("You must be logged in to do that!");
+                return;
+            }
             Player player = players.Where(p => p.Index == args.Player.Index).FirstOrDefault();
             if (args.Parameters.Count > 0)
             {
@@ -371,6 +388,25 @@ namespace Statistics
                     }
                 }
             }
+
+            // Time Update
+            foreach (Player player in players)
+            {
+                if (TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn)
+                {
+                    //player.Time.LastMsg++;
+                    //player.Time.LastMove++;
+                    //if (player.Time.LastMsg > 60 && player.Time.LastMove > 60)
+                    //{
+                    //    player.Time.Away.Add(new TimeSpan(0, 0, 1));
+                    //}
+                    //else
+                    //{
+                    //    player.Time.Playing.Add(new TimeSpan(0, 0, 1));
+                    //}
+                    player.Time.Playing.Add(new TimeSpan(0, 0, 1));
+                }
+            }
         }
 
         void UpdateTimerTick(object sender, ElapsedEventArgs e)
@@ -384,46 +420,48 @@ namespace Statistics
             }
         }
 
-        void OnServerJoin(JoinEventArgs e)
-        {
-            try
-            {
-                // A small check to prevent third-party connection attempts from breaking the system
-                if (TShock.Players[e.Who] == null)
-                    return;
+        #region OnServerJoin (Discontinued)
+        //void OnServerJoin(JoinEventArgs e)
+        //{
+        //    try
+        //    {
+        //        // A small check to prevent third-party connection attempts from breaking the system
+        //        if (TShock.Players[e.Who] == null)
+        //            return;
 
-                // Get players by name to keep stats. Different slots will be assigned when rejoining.
-                Player player = players.Where(p => p.Name == Main.player[e.Who].name).FirstOrDefault();
-                if (player == null)
-                {
-                    // If Player doesn't exist in the DB, create it
-                    if (!StatDB.PlayerExists(TShock.Players[e.Who].Name))
-                    {
-                        StatDB.AddPlayer(new Player(e.Who, TShock.Players[e.Who].Name));
-                        players.Add(new Player(e.Who, Main.player[e.Who].name));
-                    }
-                    else
-                    {
-                        players.Add(StatDB.PullPlayer(e.Who));
-                    }
-                }
-                else
-                {
-                    if (!StatDB.PlayerExists(TShock.Players[e.Who].Name))
-                    {
-                        StatDB.AddPlayer(players.Where(p => p.Name == Main.player[e.Who].name).FirstOrDefault());
-                    }
-                    else
-                    {
-                        player.Index = e.Who;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.ConsoleError(ex.ToString());
-            }
-        }
+        //        // Get players by name to keep stats. Different slots will be assigned when rejoining.
+        //        Player player = players.Where(p => p.Name == Main.player[e.Who].name).FirstOrDefault();
+        //        if (player == null)
+        //        {
+        //            // If Player doesn't exist in the DB, create it
+        //            if (!StatDB.PlayerExists(TShock.Players[e.Who].Name))
+        //            {
+        //                StatDB.AddPlayer(new Player(e.Who, TShock.Players[e.Who].Name));
+        //                players.Add(new Player(e.Who, Main.player[e.Who].name));
+        //            }
+        //            else
+        //            {
+        //                players.Add(StatDB.PullPlayer(e.Who));
+        //            }
+        //        }
+        //        else
+        //        {
+        //            if (!StatDB.PlayerExists(TShock.Players[e.Who].Name))
+        //            {
+        //                StatDB.AddPlayer(players.Where(p => p.Name == Main.player[e.Who].name).FirstOrDefault());
+        //            }
+        //            else
+        //            {
+        //                player.Index = e.Who;
+        //            }
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Log.ConsoleError(ex.ToString());
+        //    }
+        //}
+        #endregion
 
         void OnPlayerLogin(PlayerPostLoginEventArgs e)
         {
@@ -431,7 +469,7 @@ namespace Statistics
             if (StatDB.PlayerExists(e.Player.Name))
             {
                 // Finds the player, returning null if it doesn't exist
-                Player found = players.Find(p => p.Name == e.Player.Name);
+                Player found = players.Where(p => p.Index == e.Player.Index).FirstOrDefault();
                 if (found == null)
                 {
                     players.Add(new Player(e.Player.Index, e.Player.Name));
@@ -480,9 +518,10 @@ namespace Statistics
 
         void OnServerLeave(LeaveEventArgs e)
         {
-            if (TShock.Players[e.Who] != null && TShock.Players[e.Who].IsLoggedIn && players[e.Who] != null)
+            Player plr = players.Where(p => p.Index == e.Who).FirstOrDefault();
+            if (TShock.Players[e.Who] != null && TShock.Players[e.Who].IsLoggedIn && plr != null)
             {
-                StatDB.UpdatePlayer(players[e.Who]);
+                StatDB.UpdatePlayer(plr);
             }
         }
 
