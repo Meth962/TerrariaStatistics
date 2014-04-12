@@ -1,4 +1,5 @@
-﻿using System;
+﻿//#define DEBUG
+using System;
 using Terraria;
 using TerrariaApi;
 using TerrariaApi.Server;
@@ -48,7 +49,7 @@ namespace Statistics
 
         List<BossInvasion> bosses = new List<BossInvasion>();
         List<BossInvasion> invasions = new List<BossInvasion>();
-        List<Player> players = new List<Player>();
+		List<Player> players = new List<Player>();
 
         public override Version Version
         {
@@ -87,22 +88,26 @@ namespace Statistics
                 ServerApi.Hooks.NetSendData.Deregister(this, OnSendData);
                 ServerApi.Hooks.ServerLeave.Deregister(this, OnServerLeave);
 
-                PlayerHooks.PlayerPostLogin -= OnPlayerLogin;
+				PlayerHooks.PlayerPostLogin -= OnPlayerLogin;
             }
         }
 
         public override void Initialize()
         {
-            Commands.ChatCommands.Add(new Command(StatCommand, "stat"));
-            Commands.ChatCommands.Add(new Command(BossCommand, "battle", "boss"));
-            Commands.ChatCommands.Add(new Command(EncountersCommand, "bosses", "events"));
-            Commands.ChatCommands.Add(new Command(InvasionCommand, "event","invasion"));
-            Commands.ChatCommands.Add(new Command(SubCommand, "sub","subscribe"));
-            Commands.ChatCommands.Add(new Command(UnsubCommand, "unsub","unsubscribe"));
-            Commands.ChatCommands.Add(new Command(TtmCommand, "ttm"));
-            Commands.ChatCommands.Add(new Command(TtnCommand, "ttn"));
-            Commands.ChatCommands.Add(new Command("admin",WaveCommand, "wave"));
+            Commands.ChatCommands.Add(new Command("stat.check", StatCommand, "stat"));
+            Commands.ChatCommands.Add(new Command("stat.boss", BossCommand, "battle", "boss"));
+            Commands.ChatCommands.Add(new Command("stat.encounter", EncountersCommand, "bosses", "events"));
+            Commands.ChatCommands.Add(new Command("stat.invasion", InvasionCommand, "event","invasion"));
+            Commands.ChatCommands.Add(new Command("stat.sub", SubCommand, "sub","subscribe"));
+            Commands.ChatCommands.Add(new Command("stat.sub", UnsubCommand, "unsub","unsubscribe"));
+            Commands.ChatCommands.Add(new Command("stat.ttm", TtmCommand, "ttm"));
+            Commands.ChatCommands.Add(new Command("stat.ttn", TtnCommand, "ttn"));
+            Commands.ChatCommands.Add(new Command("stat.admin", WaveCommand, "wave"));
 
+			#if DEBUG
+			Commands.ChatCommands.Add(new Command(Debug, "statdebug"));
+			#endif
+			
             StatDB.SetupDB();
             dayTimer.Elapsed += new ElapsedEventHandler(DayTimerTick);
             dayTimer.Start();
@@ -113,28 +118,31 @@ namespace Statistics
             //ServerApi.Hooks.ServerJoin.Register(this, OnServerJoin);
             ServerApi.Hooks.ServerLeave.Register(this, OnServerLeave);
 
-            PlayerHooks.PlayerPostLogin += OnPlayerLogin;
+			PlayerHooks.PlayerPostLogin += new PlayerHooks.PlayerPostLoginD(OnPlayerLogin);
         }
+
+		#if DEBUG
+		void Debug(CommandArgs args)
+		{
+			args.Player.SendInfoMessage(string.Format("Logged StatPlayers: {0} | Count: {1}", string.Join(", ",
+				players.Select(p => p.Name)), players.Count));
+		}
+		#endif
 
         void StatCommand(CommandArgs args)
         {
-            if (!args.Player.IsLoggedIn)
-            {
-                args.Player.SendErrorMessage("You must be logged in to do that!");
-                return;
-            }
             Player player;
-            if (args.Parameters.Count > 0)
-            {
-                player = players.Where(p => p.Name.ToLower().Contains(args.Parameters[0].ToLower())).FirstOrDefault();
-                if (player == null)
-                {
-                    args.Player.SendWarningMessage("No player found with name like: " + args.Parameters[0]);
-                    return;
-                }
-            }
-            else
-                player = players.Where(p => p.Index == args.Player.Index).FirstOrDefault();
+			if (args.Parameters.Count > 0)
+			{
+				player = players.FirstOrDefault(p => p.Name.ToLower().Contains(args.Parameters[0].ToLower()));
+				if (player == null)
+				{
+					args.Player.SendWarningMessage("No player found with name like: " + args.Parameters[0]);
+					return;
+				}
+			}
+			else
+				player = players.FirstOrDefault(p => p.Index == args.Player.Index);
 
             if (args.Parameters.Count > 1)
             {
@@ -143,17 +151,20 @@ namespace Statistics
                     case "crit":
                     case "crits":
                     case "critical":
-                        args.Player.SendMessage(string.Format("{0}'s Crit Chance: Magic: {1}% Melee: {2}% Ranged: {3}%", player.Name, Main.player[player.Index].magicCrit, Main.player[player.Index].meleeCrit, Main.player[player.Index].rangedCrit), Color.Green);
+                        args.Player.SendSuccessMessage(string.Format("{0}'s Crit Chance: Magic: {1}% Melee: {2}% Ranged: {3}%", player.Name,
+							Main.player[player.Index].magicCrit, Main.player[player.Index].meleeCrit, Main.player[player.Index].rangedCrit));
                         break;
                 }
             }
             else
             {
-                args.Player.SendMessage(string.Format("{0}'s stats - Kills: {1:n0} Damage: {2:n0}(Max {3:n0}) Crits: {4:n0}({5:n2}%) Playtime: {6}",
-                    player.Name, player.Kills, player.DamageGiven, player.MaxDamage, player.CritsGiven, player.CritPercent, Utils.FormatTime(player.Time.Playing)), Color.Green);
-                args.Player.SendMessage(string.Format("Hurt: {0:n0}(Max {1:n0}) Crits: {2:n0} Healed: {3:n0}({4:n0}) Mana: {5:n0}({6:n0})",
+                args.Player.SendSuccessMessage(string.Format("{0}'s stats - Kills: {1:n0} Damage: {2:n0}(Max {3:n0}) Crits: {4:n0}({5:n2}%)",
+                    player.Name, player.Kills, player.DamageGiven, player.MaxDamage, player.CritsGiven, player.CritPercent));
+                args.Player.SendSuccessMessage(string.Format("Hurt: {0:n0}(Max {1:n0}) Crits: {2:n0} Healed: {3:n0}({4:n0}) Mana: {5:n0}({6:n0})",
                     player.DamageTaken, player.MaxReceived, player.CritsTaken, player.Healed, player.TimesHealed,
-                    player.ManaRecovered, player.TimesManaRecovered), Color.Green);
+					player.ManaRecovered, player.TimesManaRecovered));
+				args.Player.SendSuccessMessage(string.Format("Deaths: (Mob: {0:n0}) (PVP: {1:n0})", player.Deaths.Mob, player.Deaths.PVP));
+				args.Player.SendSuccessMessage(string.Format("Playtime: {0:n0}", Utils.FormatTime(player.Time.Playing)));
             }
         }
 
@@ -214,7 +225,8 @@ namespace Statistics
         void InvasionCommand(CommandArgs args)
         {
             if (args.Parameters.Count > 0)
-                args.Player.SendMessage(string.Format("Invasion: {0} Size: {1} Wave: {2} Points: {3}", Main.invasionType, Main.invasionSize, NPC.waveCount, NPC.waveKills), Color.LightGreen);
+                args.Player.SendMessage(string.Format("Invasion: {0} Size: {1} Wave: {2} Points: {3}", Main.invasionType,
+					Main.invasionSize, NPC.waveCount, NPC.waveKills), Color.LightGreen);
             else
             {
                 var invasion = invasions.Where(i => i.Type == Main.invasionType).FirstOrDefault();
@@ -230,18 +242,14 @@ namespace Statistics
 
         void SubCommand(CommandArgs args)
         {
-            if (!args.Player.IsLoggedIn)
-            {
-                args.Player.SendErrorMessage("You must be logged in to do that!");
-                return;
-            }
-            Player player = players.Where(p => p.Index == args.Player.Index).FirstOrDefault();
+			Player player = players.FirstOrDefault(p => p.Index == args.Player.Index);
             if (args.Parameters.Count > 0)
             {
-                Player plr = players.Where(p => p.Name.ToLower() == args.Parameters[0].ToLower()).FirstOrDefault();
+				Player plr = players.FirstOrDefault(p => p.Name.ToLower() == args.Parameters[0].ToLower());
                 if (plr != null)
                 {
-                    args.Player.SendMessage(string.Format("Player is subscribed for Bosses: {0} Invasions: {1}.", plr.BossSubscribed, plr.EventSubscribed), Color.White);
+                    args.Player.SendMessage(string.Format("Player is subscribed for Bosses: {0} Invasions: {1}.", plr.BossSubscribed,
+						plr.EventSubscribed), Color.White);
                 }
                 switch (args.Parameters[0])
                 {
@@ -265,12 +273,7 @@ namespace Statistics
 
         void UnsubCommand(CommandArgs args)
         {
-            if (!args.Player.IsLoggedIn)
-            {
-                args.Player.SendErrorMessage("You must be logged in to do that!");
-                return;
-            }
-            Player player = players.Where(p => p.Index == args.Player.Index).FirstOrDefault();
+			Player player = players.FirstOrDefault(p => p.Index == args.Player.Index);
             if (args.Parameters.Count > 0)
             {
                 switch (args.Parameters[0])
@@ -368,7 +371,8 @@ namespace Statistics
             {
                 subCount = 0;
                 var activeInvasion = invasions.Where(i => i.Active).FirstOrDefault();
-                var subbedPlayers = players.Where(p => p.EventSubscribed).ToList();
+				var subbedPlayers = players.Where(p => p.EventSubscribed && p.Active).ToList();
+				//var subbedPlayers = players.Values.Where(p => p.EventSubscribed).ToList();
                 if (activeInvasion != null && subbedPlayers.Count > 0)
                 {
                     string report = ReportProgress(activeInvasion);
@@ -392,19 +396,9 @@ namespace Statistics
             // Time Update
             foreach (Player player in players)
             {
-                if (TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn)
+                if (TShock.Players[player.Index] != null && player.Active && TShock.Players[player.Index].IsLoggedIn)
                 {
-                    //player.Time.LastMsg++;
-                    //player.Time.LastMove++;
-                    //if (player.Time.LastMsg > 60 && player.Time.LastMove > 60)
-                    //{
-                    //    player.Time.Away.Add(new TimeSpan(0, 0, 1));
-                    //}
-                    //else
-                    //{
-                    //    player.Time.Playing.Add(new TimeSpan(0, 0, 1));
-                    //}
-                    player.Time.Playing.Add(new TimeSpan(0, 0, 1));
+					player.Time.Playing++;
                 }
             }
         }
@@ -413,7 +407,7 @@ namespace Statistics
         {
             foreach (Player player in players)
             {
-                if (TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn)
+                if (TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn && player.Active)
                 {
                     StatDB.UpdatePlayer(player);
                 }
@@ -463,66 +457,14 @@ namespace Statistics
         //}
         #endregion
 
-        void OnPlayerLogin(PlayerPostLoginEventArgs e)
-        {
-            // Runs if the player already exists in the database
-            if (StatDB.PlayerExists(e.Player.Name))
-            {
-                // Finds the player, returning null if it doesn't exist
-                Player found = players.Where(p => p.Name == e.Player.Name).FirstOrDefault();
-                if (found == null)
-                {
-                    players.Add(StatDB.PullPlayer(e.Player.Name));
-                }
-                else
-                {
-                    found.Index = e.Player.Index;
-                }
-            }
-            else
-            {
-                // Runs if the player is unexistant in the database
-                StatDB.AddPlayer(new Player(e.Player.Index, e.Player.Name));
-                players.Add(new Player(e.Player.Index, e.Player.Name));
-            }
-            #region old
-            //// Get players by name to keep stats. Different slots will be assigned when rejoining.
-            //Player player = players[e.Player.Index];
-            //if (player == null)
-            //{
-            //    // If Player doesn't exist in the DB, create it
-            //    if (!StatDB.PlayerExists(e.Player.Name))
-            //    {
-            //        Player newplayer = new Player(e.Player.Index, e.Player.Name);
-            //        StatDB.AddPlayer(newplayer);
-            //        players.Add(newplayer);
-            //    }
-            //    else
-            //    {
-            //        players.Add(StatDB.PullPlayer(e.Player.Index));
-            //    }
-            //}
-            //else
-            //{
-            //    if (!StatDB.PlayerExists(e.Player.Name))
-            //    {
-            //        StatDB.AddPlayer(players.Where(p => p.Name == e.Player.Name).FirstOrDefault());
-            //    }
-            //    else
-            //    {
-            //        player.Index = e.Player.Index;
-            //    }
-            //}
-            #endregion
-        }
+		void OnPlayerLogin(PlayerPostLoginEventArgs e)
+		{
+			AddPlayer(e.Player);
+		}
 
-        void OnServerLeave(LeaveEventArgs e)
+		void OnServerLeave(LeaveEventArgs e)
         {
-            Player plr = players.Where(p => p.Index == e.Who).FirstOrDefault();
-            if (TShock.Players[e.Who] != null && TShock.Players[e.Who].IsLoggedIn && plr != null)
-            {
-                StatDB.UpdatePlayer(plr);
-            }
+			RemovePlayer(e.Who);
         }
 
         void OnSendData(SendDataEventArgs e)
@@ -542,7 +484,9 @@ namespace Statistics
                 int plr = e.Msg.whoAmI;
                 using (var reader = new BinaryReader(new MemoryStream(e.Msg.readBuffer, e.Index, e.Length)))
                 {
-                    Player player = players.Where(p => p.Index == e.Msg.whoAmI).FirstOrDefault();
+					Player player = players.FirstOrDefault(p => p.Index == plr);
+					if (player == null)
+						return;
                     switch (e.MsgID)
                     {
                         case PacketTypes.PlayerDamage:
@@ -560,6 +504,9 @@ namespace Statistics
                         case PacketTypes.SpawnBossorInvasion:
                             DoSpawnBoss(reader);
                             break;
+						case PacketTypes.PlayerKillMe:
+							DoPlayerKillMe(reader, player);
+							break;
                     }
                 }
             }
@@ -774,6 +721,23 @@ namespace Statistics
             }
         }
 
+		private void DoPlayerKillMe(BinaryReader reader, Player player)
+		{
+			byte playerID = reader.ReadByte();
+			byte hitDirection = reader.ReadByte();
+			Int16 damage = reader.ReadInt16();
+			bool pvp = reader.ReadBoolean();
+
+			if (pvp)
+			{
+				player.Deaths.PVP++;
+			}
+			else
+			{
+				player.Deaths.Mob++;
+			}
+		}
+
         public string ReportProgress(BossInvasion e)
         {
             if (e.Type > 0 && e.Type < 4) // Typical Invasions
@@ -858,5 +822,51 @@ namespace Statistics
             seconds = (54000 + (32400 - Main.time)) / 60;
             return string.Format("{0} ({1:n0}%)", Utils.FormatTime(seconds), Main.time * 100 / 54000);
         }
+
+		private void AddPlayer(TSPlayer ply)
+		{
+			Player plr;
+			// Checks if the player exists in the database
+			if (!StatDB.PlayerExists(ply.Name))
+			{
+				plr = new Player(ply.Index, ply.Name);
+				if (!StatDB.AddPlayer(plr))
+				{
+					Log.ConsoleError("[Statistics] Failed to create StatPlayer data for '{0}' in the database!", ply.Name);
+					return;
+				}
+			}
+
+			plr = players.FirstOrDefault(p => p.Name == ply.Name);
+			if (plr == null)
+			{
+				// Executed when the player still hasn't connected during this session
+				lock (this)
+				{
+					plr = StatDB.PullPlayer(ply.Name);
+					players.Add(plr);
+				}
+			}
+			else
+			{
+				// Executed if the player object already exists in this session
+				plr.Index = ply.Index;
+				plr.Active = true;
+			}
+		}
+
+		private void RemovePlayer(int index)
+		{
+			Player plr = players.FirstOrDefault(p => p.Index == index);
+			if (plr != null)
+			{
+				lock (this)
+				{
+					// Updates Player Statistics and sets its Active flag to false
+					StatDB.UpdatePlayer(plr);
+					plr.Active = false;
+				}
+			}
+		}
     }
 }
