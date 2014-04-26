@@ -1,4 +1,4 @@
-﻿//#define DEBUG
+﻿#define DEBUG
 using System;
 using Terraria;
 using TerrariaApi;
@@ -50,7 +50,7 @@ namespace Statistics
 
 		List<BossInvasion> bosses = new List<BossInvasion>();
 		List<BossInvasion> invasions = new List<BossInvasion>();
-		List<Player> players = new List<Player>();
+		Player[] players = new Player[256];
 		#endregion
 
 		#region Plugin Info
@@ -93,7 +93,7 @@ namespace Statistics
 				ServerApi.Hooks.NetSendData.Deregister(this, OnSendData);
 				ServerApi.Hooks.ServerLeave.Deregister(this, OnLeave);
 
-				PlayerHooks.PlayerPostLogin -= OnPlayerLogin;
+				//PlayerHooks.PlayerPostLogin -= OnPlayerLogin;
 			}
 		}
 		#endregion
@@ -125,18 +125,19 @@ namespace Statistics
 			ServerApi.Hooks.NetSendData.Register(this, OnSendData);
 			ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
 
-			PlayerHooks.PlayerPostLogin += new PlayerHooks.PlayerPostLoginD(OnPlayerLogin);
+			//PlayerHooks.PlayerPostLogin += new PlayerHooks.PlayerPostLoginD(OnPlayerLogin);
 		}
 		#endregion
 
 		#region Debug
-#if DEBUG
+		#if DEBUG
 		void Debug(CommandArgs args)
 		{
+			var list = players.Where(p => p != null);
 			args.Player.SendInfoMessage(string.Format("Logged StatPlayers: {0} | Count: {1}", string.Join(", ",
-				players.Select(p => p.Name)), players.Count));
+				list.Select(p => p.Name)), list.Count()));
 		}
-#endif
+		#endif
 		#endregion
 
 		#region StatCommand
@@ -159,7 +160,14 @@ namespace Statistics
 				return;
 			}
 			else
-				player = players.FirstOrDefault(p => p.Index == args.Player.Index);
+			{
+				player = players[args.Player.Index];
+				if (player == null)
+				{
+					args.Player.SendErrorMessage("You cannot use this command without having a StatPlayer assigned to. Relog and try again");
+					return;
+				}
+			}
 
 			if (args.Parameters.Count > 1)
 			{
@@ -252,11 +260,11 @@ namespace Statistics
 					Main.invasionSize, NPC.waveCount, NPC.waveKills), Color.LightGreen);
 			else
 			{
-				var invasion = invasions.Where(i => i.Type == Main.invasionType).FirstOrDefault();
+				var invasion = invasions.FirstOrDefault(i => i.Type == Main.invasionType);
 				if (Main.pumpkinMoon)
-					invasion = invasions.Where(i => i.Type == -4).FirstOrDefault();
+					invasion = invasions.FirstOrDefault(i => i.Type == -4);
 				if (Main.snowMoon)
-					invasion = invasions.Where(i => i.Type == -5).FirstOrDefault();
+					invasion = invasions.FirstOrDefault(i => i.Type == -5);
 
 				if (invasion != null)
 					args.Player.SendMessage(ReportProgress(invasion), Color.LightGreen);
@@ -267,7 +275,7 @@ namespace Statistics
 		#region SubCommand
 		void SubCommand(CommandArgs args)
 		{
-			Player player = players.FirstOrDefault(p => p.Index == args.Player.Index);
+			Player player = players[args.Player.Index];
 			if (args.Parameters.Count > 0)
 			{
 				Player plr = players.FirstOrDefault(p => p.Name.ToLower() == args.Parameters[0].ToLower());
@@ -300,7 +308,7 @@ namespace Statistics
 		#region UnsubCommand
 		void UnsubCommand(CommandArgs args)
 		{
-			Player player = players.FirstOrDefault(p => p.Index == args.Player.Index);
+			Player player = players[args.Player.Index];
 			if (args.Parameters.Count > 0)
 			{
 				switch (args.Parameters[0])
@@ -404,7 +412,7 @@ namespace Statistics
 			{
 				subCount = 0;
 				var activeInvasion = invasions.FirstOrDefault(i => i.Active);
-				var subbedPlayers = players.Where(p => p.EventSubscribed && p.Active).ToList();
+				var subbedPlayers = players.Where(p => p.EventSubscribed).ToList();
 				//var subbedPlayers = players.Values.Where(p => p.EventSubscribed).ToList();
 				if (activeInvasion != null && subbedPlayers.Count > 0)
 				{
@@ -420,7 +428,7 @@ namespace Statistics
 				{
 					foreach (var player in nocturnalBosses.Players)
 					{
-						if (player.BossSubscribed)
+						if (player != null && player.BossSubscribed)
 							TShock.Players[player.Index].SendMessage("Time Until Morning: " + TimeTilMorning(), Color.Purple);
 					}
 				}
@@ -429,10 +437,8 @@ namespace Statistics
 			// Time Update
 			foreach (Player player in players)
 			{
-				if (TShock.Players[player.Index] != null && player.Active && TShock.Players[player.Index].IsLoggedIn)
-				{
+				if (TShock.Players[player.Index] != null && player != null)
 					player.Time.Playing++;
-				}
 			}
 		}
 
@@ -440,73 +446,51 @@ namespace Statistics
 		{
 			foreach (Player player in players)
 			{
-				if (TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn && player.Active)
+				if (TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn && player != null)
 				{
-					StatDB.UpdatePlayer(player);
+					if (StatDB.PlayerExists(player.Name))
+						StatDB.UpdatePlayer(player);
+					else
+						StatDB.AddPlayer(player);
 				}
 			}
 		}
 		#endregion
 
-		#region OnServerJoin (Discontinued)
-		//void OnServerJoin(JoinEventArgs e)
-		//{
-		//    try
-		//    {
-		//        // A small check to prevent third-party connection attempts from breaking the system
-		//        if (TShock.Players[e.Who] == null)
-		//            return;
-
-		//        // Get players by name to keep stats. Different slots will be assigned when rejoining.
-		//        Player player = players.Where(p => p.Name == Main.player[e.Who].name).FirstOrDefault();
-		//        if (player == null)
-		//        {
-		//            // If Player doesn't exist in the DB, create it
-		//            if (!StatDB.PlayerExists(TShock.Players[e.Who].Name))
-		//            {
-		//                StatDB.AddPlayer(new Player(e.Who, TShock.Players[e.Who].Name));
-		//                players.Add(new Player(e.Who, Main.player[e.Who].name));
-		//            }
-		//            else
-		//            {
-		//                players.Add(StatDB.PullPlayer(e.Who));
-		//            }
-		//        }
-		//        else
-		//        {
-		//            if (!StatDB.PlayerExists(TShock.Players[e.Who].Name))
-		//            {
-		//                StatDB.AddPlayer(players.Where(p => p.Name == Main.player[e.Who].name).FirstOrDefault());
-		//            }
-		//            else
-		//            {
-		//                player.Index = e.Who;
-		//            }
-		//        }
-		//    }
-		//    catch (Exception ex)
-		//    {
-		//        Log.ConsoleError(ex.ToString());
-		//    }
-		//}
-		#endregion
-
-		#region Join/Login/Leave
+		#region Join/Leave
 		void OnJoin(JoinEventArgs e)
 		{
-			AddPlayer(e.Who);
-		}
+			TSPlayer ply = TShock.Players[e.Who];
+			if (ply == null)
+				return;
 
-		void OnPlayerLogin(PlayerPostLoginEventArgs e)
-		{
-			Player plr = players.FirstOrDefault(p => p.Index == e.Player.Index);
-			if (plr != null && !plr.Active)
-				LoginPlayer(e.Player);
+			Player plr;
+			if (StatDB.PlayerExists(ply.Name))
+				plr = StatDB.PullPlayer(ply.Name);
+			else
+				plr = new Player(e.Who, ply.Name);
+
+			players[e.Who] = plr;
 		}
 
 		void OnLeave(LeaveEventArgs e)
 		{
-			RemovePlayer(e.Who);
+			Player plr = players[e.Who];
+			if (TShock.Players[e.Who] == null || plr == null)
+				return;
+
+			if (!TShock.Players[e.Who].IsLoggedIn)
+			{
+				players[e.Who] = null;
+				return;
+			}
+
+			if (StatDB.PlayerExists(plr.Name))
+				StatDB.UpdatePlayer(plr);
+			else
+				StatDB.AddPlayer(plr);
+
+			players[e.Who] = null;
 		}
 		#endregion
 
@@ -530,9 +514,10 @@ namespace Statistics
 				int plr = e.Msg.whoAmI;
 				using (var reader = new BinaryReader(new MemoryStream(e.Msg.readBuffer, e.Index, e.Length)))
 				{
-					Player player = players.FirstOrDefault(p => p.Index == plr);
+					Player player = players[plr];
 					if (player == null)
 						return;
+
 					switch (e.MsgID)
 					{
 						case PacketTypes.PlayerDamage:
@@ -888,98 +873,6 @@ namespace Statistics
 
 			seconds = (54000 + (32400 - Main.time)) / 60;
 			return string.Format("{0} ({1:n0}%)", Utils.FormatTime(seconds), Main.time * 100 / 54000);
-		}
-		#endregion
-
-		#region AddPlayer
-		// 1.0.9 - Not in use
-		private void AddPlayer(TSPlayer ply)
-		{
-			Player plr = new Player();
-			// Checks if the player exists in the database
-			if (!StatDB.PlayerExists(ply.Name))
-			{
-				plr = new Player(ply.Index, ply.Name);
-				if (!StatDB.AddPlayer(plr))
-				{
-					Log.ConsoleError("[Statistics] Failed to create StatPlayer data for '{0}' in the database!", ply.Name);
-					return;
-				}
-			}
-
-			plr = players.FirstOrDefault(p => p.Name == ply.Name);
-			if (plr == null)
-			{
-				// Executed when the player still hasn't connected during this session
-				lock (this)
-				{
-					plr = StatDB.PullPlayer(ply.Name);
-					players.Add(plr);
-				}
-			}
-			else
-			{
-				// Executed if the player object already exists in this session
-				plr.Index = ply.Index;
-				plr.Active = true;
-			}
-		}
-
-		private void AddPlayer(int index)
-		{
-			// Null check
-			TSPlayer ply = TShock.Players[index];
-			if (ply != null)
-			{
-				Player plr = players.FirstOrDefault(p => p.Name == ply.Name);
-				if (plr == null)
-					plr = LoadPlayer(ply);
-				else if (plr != null && !plr.Active)
-				{
-					plr.Index = ply.Index;
-					plr.Active = true;
-				}
-			}
-		}
-		#endregion
-
-		#region LoadPlayer
-		private Player LoadPlayer(TSPlayer ply)
-		{
-			Player plr;
-			if (ply.IsLoggedIn && StatDB.PlayerExists(ply.Name))
-			{
-				plr = StatDB.PullPlayer(ply.Name);
-			}
-			else
-			{
-				plr = new Player(ply.Index, ply.Name);
-			}
-			return plr;
-		}
-
-		private void LoginPlayer(TSPlayer ply)
-		{
-			Player plr = LoadPlayer(ply);
-			if (!StatDB.PlayerExists(ply.Name))
-				StatDB.AddPlayer(plr);
-		}
-		#endregion
-
-		#region RemovePlayer
-		private void RemovePlayer(int index)
-		{
-			Player plr = players.FirstOrDefault(p => p.Index == index);
-			if (plr != null)
-			{
-				lock (this)
-				{
-					// Updates Player Statistics and sets its Active flag to false
-					if (StatDB.PlayerExists(plr.Name))
-						StatDB.UpdatePlayer(plr);
-					plr.Active = false;
-				}
-			}
 		}
 		#endregion
 	}

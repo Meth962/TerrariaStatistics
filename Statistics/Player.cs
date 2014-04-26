@@ -9,7 +9,6 @@ namespace Statistics
     {
         public int Index { get; set; }
         public string Name { get; set; }
-		public bool Active { get; set; }
         public UInt32 Healed { get; set; }
         public UInt32 TimesHealed { get; set; }
         public UInt32 ManaRecovered { get; set; }
@@ -41,7 +40,6 @@ namespace Statistics
         {
             BossSubscribed = true;
             EventSubscribed = true;
-			Active = true;
             Time = new Time();
 			Deaths = new Deaths();
         }
