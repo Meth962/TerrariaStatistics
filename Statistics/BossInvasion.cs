@@ -157,14 +157,16 @@ namespace Statistics
             Active = false;
             foreach (Player player in Players)
             {
-                TShock.Players[player.Index].SendMessage(string.Format("{0} recording available. Type /{1} to view stats.", Invasion ? "Event" : "Battle", Invasion ? "battle" : "boss"), Color.LightCyan);
+				if (player != null)
+					TShock.Players[player.Index].SendMessage(string.Format("{0} recording available. Type /{1} to view stats.",
+						Invasion ? "Event" : "Battle", Invasion ? "battle" : "boss"), Color.LightCyan);
             }
             //TSPlayer.All.SendMessage(string.Format("{0} recording available. Type /{1} to view stats.", Invasion ? "Event" : "Battle", Invasion ? "battle" : "boss"), Color.LightCyan);
         }
 
         public void AddDamage(Player player, int damage)
         {
-            Player plr = Players.Where(p => p.Index == player.Index).FirstOrDefault();
+			Player plr = Players.FirstOrDefault(p => p.Index == player.Index);
             if (plr == null)
             {
                 plr = new Player(player.Index, player.Name);

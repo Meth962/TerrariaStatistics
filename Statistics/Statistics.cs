@@ -446,7 +446,7 @@ namespace Statistics
 		{
 			foreach (Player player in players)
 			{
-				if (TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn && player != null)
+				if (player != null && TShock.Players[player.Index] != null && TShock.Players[player.Index].IsLoggedIn)
 				{
 					if (StatDB.PlayerExists(player.Name))
 						StatDB.UpdatePlayer(player);
@@ -460,37 +460,43 @@ namespace Statistics
 		#region Join/Leave
 		void OnJoin(JoinEventArgs e)
 		{
-			TSPlayer ply = TShock.Players[e.Who];
-			if (ply == null)
-				return;
+			lock (this)
+			{
+				TSPlayer ply = TShock.Players[e.Who];
+				if (ply == null)
+					return;
 
-			Player plr;
-			if (StatDB.PlayerExists(ply.Name))
-				plr = StatDB.PullPlayer(ply.Name);
-			else
-				plr = new Player(e.Who, ply.Name);
+				Player plr;
+				if (StatDB.PlayerExists(ply.Name))
+					plr = StatDB.PullPlayer(ply.Name);
+				else
+					plr = new Player(e.Who, ply.Name);
 
-			players[e.Who] = plr;
+				players[e.Who] = plr;
+			}
 		}
 
 		void OnLeave(LeaveEventArgs e)
 		{
-			Player plr = players[e.Who];
-			if (TShock.Players[e.Who] == null || plr == null)
-				return;
-
-			if (!TShock.Players[e.Who].IsLoggedIn)
+			lock (this)
 			{
-				players[e.Who] = null;
-				return;
+				Player plr = players[e.Who];
+				if (TShock.Players[e.Who] == null || plr == null)
+					return;
+
+				if (!TShock.Players[e.Who].IsLoggedIn)
+				{
+					players[e.Who] = null;
+					return;
+				}
+
+				if (StatDB.PlayerExists(plr.Name))
+					StatDB.UpdatePlayer(plr);
+				else
+					StatDB.AddPlayer(plr);
+
+				players[e.Who] = null; 
 			}
-
-			if (StatDB.PlayerExists(plr.Name))
-				StatDB.UpdatePlayer(plr);
-			else
-				StatDB.AddPlayer(plr);
-
-			players[e.Who] = null;
 		}
 		#endregion
 
