@@ -22,6 +22,9 @@ namespace Statistics
         public UInt32 CritsTaken { get; set; }
         public UInt32 CritsGiven { get; set; }
         public UInt32 Kills { get; set; }
+        public UInt32 PlayerKills { get; set; }
+        public Time Time { get; set; }
+		public Deaths Deaths { get; set; }
         public bool BossSubscribed { get; set; }
         public bool EventSubscribed { get; set; }
 
@@ -37,6 +40,8 @@ namespace Statistics
         {
             BossSubscribed = true;
             EventSubscribed = true;
+            Time = new Time();
+			Deaths = new Deaths();
         }
 
         public Player(int index) : this()
@@ -50,4 +55,32 @@ namespace Statistics
             Name = name;
         }
     }
+
+    public class Time
+    {
+        public int Playing { get; set; }
+        public int Away { get; set; }
+        public int LastMsg { get; set; }
+        public int LastMove { get; set; }
+
+        public Time()
+        {
+			Playing = 0;
+			Away = 0;
+            LastMsg = 0;
+            LastMove = 0;
+        }
+    }
+
+	public class Deaths
+	{
+		public int Mob { get; set; }
+		public int PVP { get; set; }
+
+		public Deaths()
+		{
+			Mob = 0;
+			PVP = 0;
+		}
+	}
 }
